@@ -33,6 +33,7 @@ const Stake: NextPage = () => {
   const { data: ownedNfts } = useOwnedNFTs(nftDropContract, address);
   const { data: tokenBalance } = useTokenBalance(tokenContract, address);
   const [claimableRewards, setClaimableRewards] = useState<BigNumber>();
+  const [inputValue, setInputValue] = useState<string>("");
   const { data: stakedTokens } = useContractRead(
     contract,
     "getStakeInfo",
@@ -50,9 +51,9 @@ const Stake: NextPage = () => {
     loadClaimableRewards();
   }, [address, contract]);
 
-  async function stakeNft(id: string) {
+  async function stakeNft(ids: string[]) {
     if (!address) return;
-
+  
     const isApproved = await nftDropContract?.isApproved(
       address,
       stakingContractAddress
@@ -60,9 +61,19 @@ const Stake: NextPage = () => {
     if (!isApproved) {
       await nftDropContract?.setApprovalForAll(stakingContractAddress, true);
     }
-    await contract?.call("stake", [id]);
+  
+    try {
+      for (const id of ids) {
+        await contract?.call("stake", [id]);
+      }
+    } catch (error: any) {
+      if (error.name === "TransactionRevertedWithoutReasonError") {
+        alert("Transaction cancelled");
+      } else {
+        console.log(error);
+      }
+    }
   }
-
   if (isLoading) {
     return <div>Loading</div>;
   }
@@ -70,6 +81,14 @@ const Stake: NextPage = () => {
   return (
     <div className={styles.container}>
       <h1 className={styles.h1}>Stake Your NFTs</h1>
+      <input
+  type="text"
+  placeholder="Enter NFT ID(s) separated by commas"
+  value={inputValue}
+  onChange={(e) => setInputValue(e.target.value)}
+/>
+      <button onClick={() => stakeNft(inputValue.split(","))}>Stake NFT(s)</button>
+      <text className="text1">Enter NFT IDs separated by commas. Staking multiples NFTs at once will trigger multiples transactions.</text>
       <hr className={`${styles.divider} ${styles.spacerTop}`} />
 
       {!address ? (
@@ -118,23 +137,7 @@ const Stake: NextPage = () => {
 
           <hr className={`${styles.divider} ${styles.spacerTop}`} />
           <h2>Your Unstaked NFTs</h2>
-          <div className={styles.nftBoxGrid}>
-            {ownedNfts?.map((nft) => (
-              <div className={styles.nftBox} key={nft.metadata.id.toString()}>
-                <ThirdwebNftMedia
-                  metadata={nft.metadata}
-                  className={styles.nftMedia}
-                />
-                <h3>{nft.metadata.name}</h3>
-                <Web3Button
-                  contractAddress={stakingContractAddress}
-                  action={() => stakeNft(nft.metadata.id)}
-                >
-                  Stake
-                </Web3Button>
-              </div>
-            ))}
-          </div>
+          
         </>
       )}
     </div>
